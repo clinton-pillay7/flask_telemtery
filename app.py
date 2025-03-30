@@ -2,7 +2,8 @@ import pandas as pd
 from sqlalchemy import create_engine
 import pyodbc
 import os
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, url_for, redirect
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import traceback
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -19,9 +20,18 @@ resource = Resource.create({"service.name": "flask-app"})
 
 # Set up Flask init variables
 app = Flask(__name__)
+app.secret_key = "secret_key"
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Authentication initialisation
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+# Mock User Database
+users = {'admin': {'password': 'password123'}}
 
 # Set up OpenTelemetry Tracer
 trace.set_tracer_provider(TracerProvider(resource=resource))
@@ -29,10 +39,6 @@ tracer = trace.get_tracer(__name__)
 
 # Use OTLP HTTP Exporter (not gRPC)
 otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
-
-
-# Instrument Flask app
-FlaskInstrumentor().instrument_app(app)
 
 
 trace.get_tracer_provider().add_span_processor(
@@ -58,11 +64,50 @@ def connection(conn_str):
         print(f"Error connecting to SQL Server: {e}")
         return None  # Return None instead of string "Error"
 
+
+# Authentication
+# Mock User Database
+users = {'admin': {'password': 'password123'}}
+
+# User class inherits from UserMixin, which provides default implementations of methods
+class User(UserMixin):
+    def __init__(self, username):
+        self.id = username
+
+# Flask-Login Callback, to validate if user is registered
+@login_manager.user_loader
+def load_user(user_id):
+    if user_id in users:
+        return User(user_id)
+    return None
+
+# login page
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        if username in users and users[username]['password'] == password:
+            user = User(username)
+            login_user(user)
+            return redirect(url_for('index'))
+    return render_template('login.html')
+
+# logout function
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# displays home page
 @app.route('/')
 def index():
     with tracer.start_as_current_span("home-span"):
          return render_template('index.html')
 
+
+# defines upload and insert logic
 @app.route('/upload', methods=['POST'])
 def upload_file():
     with tracer.start_as_current_span("upload and insert"):
