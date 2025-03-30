@@ -14,6 +14,7 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.trace import get_current_span
 
 
 # Set a service name for otel
@@ -106,6 +107,7 @@ def connection(conn_str):
         return None  # Return None instead of string "Error"
 
 @app.route('/')
+@login_required
 def index():
     with tracer.start_as_current_span("home-span"):
          return render_template('index.html')
@@ -142,7 +144,10 @@ def upload_file():
                         )
 
                dbconn.commit()
-               return jsonify({"message": "File processed and data inserted successfully"}), 200
+               span = get_current_span()
+               trace_id = format(span.get_span_context().trace_id, "x")
+               print(trace_id)
+               return jsonify({"message": "File processed and data inserted successfully", "trace_id": trace_id}), 200
 
            except Exception as e:
                traceback.print_exc()
