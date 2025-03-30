@@ -15,13 +15,14 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 
+
 # Set a service name
 resource = Resource.create({"service.name": "flask-app"})
 
 # Set up Flask init variables
 app = Flask(__name__)
-app.secret_key = "secret_key"
 UPLOAD_FOLDER = 'uploads'
+app.secret_key = "secret_key"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -32,38 +33,6 @@ login_manager.login_view = "login"
 
 # Mock User Database
 users = {'admin': {'password': 'password123'}}
-
-# Set up OpenTelemetry Tracer
-trace.set_tracer_provider(TracerProvider(resource=resource))
-tracer = trace.get_tracer(__name__)
-
-# Use OTLP HTTP Exporter (not gRPC)
-otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
-
-
-trace.get_tracer_provider().add_span_processor(
-    BatchSpanProcessor(otlp_exporter)
-)
-
-# DB connection params
-conn_str = (
-    'DRIVER=ODBC Driver 17 for SQL Server;'
-    'SERVER=192.168.8.100\\SQLEXPRESS;'
-    'DATABASE=flask;'
-    'UID=flaskuser;'
-    'PWD=flaskpassword'
-)
-
-# Connection function
-def connection(conn_str):
-    try:
-        conn = pyodbc.connect(conn_str)
-        print("Connection successful")
-        return conn
-    except Exception as e:
-        print(f"Error connecting to SQL Server: {e}")
-        return None  # Return None instead of string "Error"
-
 
 # Authentication
 # Mock User Database
@@ -100,14 +69,47 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# displays home page
+
+# Set up OpenTelemetry Tracer
+trace.set_tracer_provider(TracerProvider(resource=resource))
+tracer = trace.get_tracer(__name__)
+
+# Use OTLP HTTP Exporter (not gRPC)
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
+
+
+# Instrument Flask app
+FlaskInstrumentor().instrument_app(app)
+
+
+trace.get_tracer_provider().add_span_processor(
+    BatchSpanProcessor(otlp_exporter)
+)
+
+# DB connection params
+conn_str = (
+    'DRIVER=ODBC Driver 17 for SQL Server;'
+    'SERVER=192.168.8.100\\SQLEXPRESS;'
+    'DATABASE=flask;'
+    'UID=flaskuser;'
+    'PWD=flaskpassword'
+)
+
+# Connection function
+def connection(conn_str):
+    try:
+        conn = pyodbc.connect(conn_str)
+        print("Connection successful")
+        return conn
+    except Exception as e:
+        print(f"Error connecting to SQL Server: {e}")
+        return None  # Return None instead of string "Error"
+
 @app.route('/')
 def index():
     with tracer.start_as_current_span("home-span"):
          return render_template('index.html')
 
-
-# defines upload and insert logic
 @app.route('/upload', methods=['POST'])
 def upload_file():
     with tracer.start_as_current_span("upload and insert"):
