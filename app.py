@@ -16,7 +16,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 
 
-# Set a service name
+# Set a service name for otel
 resource = Resource.create({"service.name": "flask-app"})
 
 # Set up Flask init variables
