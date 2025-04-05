@@ -112,6 +112,26 @@ def index():
     with tracer.start_as_current_span("home-span"):
          return render_template('index.html')
 
+
+@app.route('/query')
+@login_required
+def query():
+    with tracer.start_as_current_span("query"):
+        dbconn = connection(conn_str)
+        if not dbconn:
+            return jsonify({"error": "Database connection failed during query function"}), 500
+
+        try:
+            cursor = dbconn.cursor()
+            cursor.execute("SELECT * FROM flask.dbo.flasktable")  # Customize query
+            columns = [column[0] for column in cursor.description]
+            rows = cursor.fetchall()
+            return render_template("query.html", columns=columns, rows=rows)
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({"error": str(e)}), 500
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     with tracer.start_as_current_span("upload and insert"):

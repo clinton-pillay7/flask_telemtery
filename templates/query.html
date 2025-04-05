@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SQL Server Data</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 8px; text-align: left; border: 1px solid #ccc; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h2>Data from SQL Server</h2>
+    <table>
+        <thead>
+            <tr>
+                {% for col in columns %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                {% for item in row %}
+                <td>{{ item }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
+
