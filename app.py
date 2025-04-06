@@ -110,7 +110,15 @@ def connection(conn_str):
 @login_required
 def index():
     with tracer.start_as_current_span("home-span"):
-         return render_template('index.html')
+         return render_template('base.html')
+
+
+
+@app.route('/upload')
+@login_required
+def upload_page():
+    with tracer.start_as_current_span("home-span"):
+         return render_template('upload.html')
 
 
 @app.route('/query')
