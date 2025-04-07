@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 import pyodbc
 import os
-from flask import Flask, request, render_template, jsonify, url_for, redirect
+from flask import Flask, request, render_template, jsonify, url_for, redirect, session
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import traceback
 from opentelemetry import trace
@@ -20,6 +20,20 @@ from opentelemetry.trace import get_current_span
 # Set a service name for otel
 resource = Resource.create({"service.name": "flask-app"})
 
+# Set up OpenTelemetry Tracer
+trace.set_tracer_provider(TracerProvider(resource=resource))
+tracer = trace.get_tracer(__name__)
+
+# Use OTLP HTTP Exporter (not gRPC)
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
+
+# Instrument Flask app
+#FlaskInstrumentor().instrument_app(app)
+
+# creates object to send traces to OTLP via batches
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(otlp_exporter))
+
+
 # Set up Flask init variables
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -32,12 +46,8 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-# Mock User Database
-users = {'admin': {'password': 'password123'}}
-
-# Authentication
-# Mock User Database
-users = {'admin': {'password': 'password123'}}
+#Mock User Database
+users = {'admin': {'password': 'password123'},'clinton': {'password': 'password123'}}
 
 # User class inherits from UserMixin, which provides default implementations of methods
 class User(UserMixin):
@@ -51,6 +61,7 @@ def load_user(user_id):
         return User(user_id)
     return None
 
+
 # login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -60,8 +71,10 @@ def login():
         if username in users and users[username]['password'] == password:
             user = User(username)
             login_user(user)
-            return redirect(url_for('index'))
+            #return redirect(url_for('index'))
+            return render_template('base.html', username=username)
     return render_template('login.html')
+
 
 # logout function
 @app.route('/logout')
@@ -70,22 +83,6 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-
-# Set up OpenTelemetry Tracer
-trace.set_tracer_provider(TracerProvider(resource=resource))
-tracer = trace.get_tracer(__name__)
-
-# Use OTLP HTTP Exporter (not gRPC)
-otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
-
-
-# Instrument Flask app
-FlaskInstrumentor().instrument_app(app)
-
-
-trace.get_tracer_provider().add_span_processor(
-    BatchSpanProcessor(otlp_exporter)
-)
 
 # DB connection params
 conn_str = (
@@ -110,8 +107,8 @@ def connection(conn_str):
 @login_required
 def index():
     with tracer.start_as_current_span("home-span"):
-         return render_template('base.html')
-
+         username_id = login()
+         return render_template('base.html', username_id=username_id)
 
 
 @app.route('/upload')
